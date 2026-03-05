@@ -1,6 +1,6 @@
-import 'package:chekout/widgets/product_card.dart';
+
 import 'package:flutter/material.dart';
-//import 'package:prostore/widgets/product_card.dart';
+import 'package:chekout/widgets/cart_item.dart';
 import '../models/product_model.dart';
 import 'product_detail_screen.dart';
 import 'widgets/product_card.dart';

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../models/product_model.dart';
-import '../models/order_model.dart';
 import '../database/database_helper.dart';
 import 'order_history_screen.dart';
 
@@ -47,7 +46,8 @@ class CartScreen extends StatelessWidget {
                 children: [
                   Icon(Icons.shopping_cart_outlined, size: 80, color: Colors.grey),
                   SizedBox(height: 16),
-                  Text("Tu carrito está vacío", style: TextStyle(fontSize: 18, color: Colors.grey)),
+                  Text("Tu carrito está vacío",
+                      style: TextStyle(fontSize: 18, color: Colors.grey)),
                 ],
               ),
             )
@@ -59,7 +59,8 @@ class CartScreen extends StatelessWidget {
                     itemCount: cartItems.length,
                     itemBuilder: (context, i) => Card(
                       margin: const EdgeInsets.only(bottom: 15),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(15)),
                       child: ListTile(
                         leading: ClipRRect(
                           borderRadius: BorderRadius.circular(10),
@@ -117,11 +118,15 @@ class CartScreen extends StatelessWidget {
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFFF4B4B),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(15)),
               ),
               onPressed: () => _processPayment(context, total),
               child: const Text("PAGAR AHORA",
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16)),
             ),
           )
         ],
@@ -129,9 +134,21 @@ class CartScreen extends StatelessWidget {
     );
   }
 
-  // ─── Procesar pago y guardar en SQLite ────────────────────────────────────
   Future<void> _processPayment(BuildContext context, double total) async {
-    // Mostrar indicador de carga
+    // ── 1. Copia los items ANTES de cualquier otra operación ─────────────
+    final List<Product> itemsToSave = List<Product>.from(cartItems);
+
+    if (itemsToSave.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("El carrito está vacío"),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    // ── 2. Mostrar loading ────────────────────────────────────────────────
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -141,93 +158,99 @@ class CartScreen extends StatelessWidget {
     );
 
     try {
-      // Guardar orden en base de datos SQLite
-      final orderId = await DatabaseHelper.instance.saveOrder(
-        List<Product>.from(cartItems),
+      // ── 3. Guardar en SQLite ──────────────────────────────────────────
+      final int orderId = await DatabaseHelper.instance.saveOrder(
+        itemsToSave,
         total,
       );
 
-      // Cerrar loading
-      Navigator.pop(context);
+      // ── 4. Cerrar loading ─────────────────────────────────────────────
+      if (context.mounted) Navigator.pop(context);
 
-      // Limpiar carrito
+      // ── 5. Limpiar carrito DESPUÉS de guardar en DB ───────────────────
       onCheckoutComplete();
 
-      // Mostrar confirmación con el ID de orden
-      showDialog(
-        context: context,
-        builder: (c) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const CircleAvatar(
-                radius: 35,
-                backgroundColor: Color(0xFFFF4B4B),
-                child: Icon(Icons.check, color: Colors.white, size: 40),
-              ),
-              const SizedBox(height: 20),
-              const Text("¡Pago Exitoso!",
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              Text("Orden #$orderId procesada correctamente.",
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.grey)),
-              const SizedBox(height: 4),
-              Text("Total pagado: \$${total.toStringAsFixed(2)}",
-                  style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFFFF4B4B),
-                      fontSize: 16)),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: Color(0xFFFF4B4B)),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10)),
+      // ── 6. Mostrar confirmación ───────────────────────────────────────
+      if (context.mounted) {
+        showDialog(
+          context: context,
+          builder: (c) => AlertDialog(
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const CircleAvatar(
+                  radius: 35,
+                  backgroundColor: Color(0xFFFF4B4B),
+                  child: Icon(Icons.check, color: Colors.white, size: 40),
+                ),
+                const SizedBox(height: 20),
+                const Text("¡Pago Exitoso!",
+                    style: TextStyle(
+                        fontSize: 22, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Text("Orden #$orderId — ${itemsToSave.length} producto(s)",
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.grey)),
+                const SizedBox(height: 4),
+                Text("\$${total.toStringAsFixed(2)}",
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFFFF4B4B),
+                        fontSize: 20)),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: Color(0xFFFF4B4B)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10)),
+                        ),
+                        onPressed: () {
+                          Navigator.pop(c);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => const OrderHistoryScreen()),
+                          );
+                        },
+                        child: const Text("Ver historial",
+                            style: TextStyle(color: Color(0xFFFF4B4B))),
                       ),
-                      onPressed: () {
-                        Navigator.pop(c);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => const OrderHistoryScreen()),
-                        );
-                      },
-                      child: const Text("Ver historial",
-                          style: TextStyle(color: Color(0xFFFF4B4B))),
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFFF4B4B),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10)),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFFF4B4B),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10)),
+                        ),
+                        onPressed: () => Navigator.pop(c),
+                        child: const Text("OK",
+                            style: TextStyle(color: Colors.white)),
                       ),
-                      onPressed: () => Navigator.pop(c),
-                      child: const Text("OK",
-                          style: TextStyle(color: Colors.white)),
                     ),
-                  ),
-                ],
-              )
-            ],
+                  ],
+                )
+              ],
+            ),
           ),
-        ),
-      );
+        );
+      }
     } catch (e) {
-      Navigator.pop(context); // cerrar loading
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("Error al procesar el pago: $e"),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (context.mounted) Navigator.pop(context);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Error al procesar el pago: $e"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 }
