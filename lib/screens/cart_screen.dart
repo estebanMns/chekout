@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/product_model.dart';
-import '../database/database_helper.dart';
+import 'payment_screen.dart';
 import 'order_history_screen.dart';
 
 class CartScreen extends StatelessWidget {
@@ -21,7 +21,8 @@ class CartScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text("My Cart", style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text("My Cart",
+            style: TextStyle(fontWeight: FontWeight.bold)),
         centerTitle: true,
         elevation: 0,
         backgroundColor: Colors.white,
@@ -30,12 +31,8 @@ class CartScreen extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.history, color: Color(0xFFFF4B4B)),
             tooltip: 'Historial de órdenes',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const OrderHistoryScreen()),
-              );
-            },
+            onPressed: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const OrderHistoryScreen())),
           ),
         ],
       ),
@@ -44,7 +41,8 @@ class CartScreen extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.shopping_cart_outlined, size: 80, color: Colors.grey),
+                  Icon(Icons.shopping_cart_outlined,
+                      size: 80, color: Colors.grey),
                   SizedBox(height: 16),
                   Text("Tu carrito está vacío",
                       style: TextStyle(fontSize: 18, color: Colors.grey)),
@@ -64,19 +62,18 @@ class CartScreen extends StatelessWidget {
                       child: ListTile(
                         leading: ClipRRect(
                           borderRadius: BorderRadius.circular(10),
-                          child: Image.network(
-                            cartItems[i].image,
-                            width: 50,
-                            height: 50,
-                            fit: BoxFit.cover,
-                          ),
+                          child: Image.network(cartItems[i].image,
+                              width: 50, height: 50, fit: BoxFit.cover),
                         ),
                         title: Text(cartItems[i].name,
-                            style: const TextStyle(fontWeight: FontWeight.bold)),
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold)),
                         subtitle: Text("\$${cartItems[i].price}",
-                            style: const TextStyle(color: Color(0xFFFF4B4B))),
+                            style: const TextStyle(
+                                color: Color(0xFFFF4B4B))),
                         trailing: IconButton(
-                          icon: const Icon(Icons.delete_outline, color: Colors.red),
+                          icon: const Icon(Icons.delete_outline,
+                              color: Colors.red),
                           onPressed: () => onRemove(i),
                         ),
                       ),
@@ -103,7 +100,8 @@ class CartScreen extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text("Total:",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  style: TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.bold)),
               Text("\$${total.toStringAsFixed(2)}",
                   style: const TextStyle(
                       fontSize: 22,
@@ -121,136 +119,28 @@ class CartScreen extends StatelessWidget {
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(15)),
               ),
-              onPressed: () => _processPayment(context, total),
+              onPressed: () {
+                // Abrir pantalla de pago con los datos del carrito
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => PaymentScreen(
+                      cartItems: List<Product>.from(cartItems),
+                      total: total,
+                      onPaymentComplete: onCheckoutComplete,
+                    ),
+                  ),
+                );
+              },
               child: const Text("PAGAR AHORA",
                   style: TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
                       fontSize: 16)),
             ),
-          )
+          ),
         ],
       ),
     );
-  }
-
-  Future<void> _processPayment(BuildContext context, double total) async {
-    // ── 1. Copia los items ANTES de cualquier otra operación ─────────────
-    final List<Product> itemsToSave = List<Product>.from(cartItems);
-
-    if (itemsToSave.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("El carrito está vacío"),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
-
-    // ── 2. Mostrar loading ────────────────────────────────────────────────
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const Center(
-        child: CircularProgressIndicator(color: Color(0xFFFF4B4B)),
-      ),
-    );
-
-    try {
-      // ── 3. Guardar en SQLite ──────────────────────────────────────────
-      final int orderId = await DatabaseHelper.instance.saveOrder(
-        itemsToSave,
-        total,
-      );
-
-      // ── 4. Cerrar loading ─────────────────────────────────────────────
-      if (context.mounted) Navigator.pop(context);
-
-      // ── 5. Limpiar carrito DESPUÉS de guardar en DB ───────────────────
-      onCheckoutComplete();
-
-      // ── 6. Mostrar confirmación ───────────────────────────────────────
-      if (context.mounted) {
-        showDialog(
-          context: context,
-          builder: (c) => AlertDialog(
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20)),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const CircleAvatar(
-                  radius: 35,
-                  backgroundColor: Color(0xFFFF4B4B),
-                  child: Icon(Icons.check, color: Colors.white, size: 40),
-                ),
-                const SizedBox(height: 20),
-                const Text("¡Pago Exitoso!",
-                    style: TextStyle(
-                        fontSize: 22, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                Text("Orden #$orderId — ${itemsToSave.length} producto(s)",
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: Colors.grey)),
-                const SizedBox(height: 4),
-                Text("\$${total.toStringAsFixed(2)}",
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFFFF4B4B),
-                        fontSize: 20)),
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: Color(0xFFFF4B4B)),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10)),
-                        ),
-                        onPressed: () {
-                          Navigator.pop(c);
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => const OrderHistoryScreen()),
-                          );
-                        },
-                        child: const Text("Ver historial",
-                            style: TextStyle(color: Color(0xFFFF4B4B))),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFFF4B4B),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10)),
-                        ),
-                        onPressed: () => Navigator.pop(c),
-                        child: const Text("OK",
-                            style: TextStyle(color: Colors.white)),
-                      ),
-                    ),
-                  ],
-                )
-              ],
-            ),
-          ),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) Navigator.pop(context);
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Error al procesar el pago: $e"),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
   }
 }
