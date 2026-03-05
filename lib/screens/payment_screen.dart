@@ -22,23 +22,21 @@ class PaymentScreen extends StatefulWidget {
 
 class _PaymentScreenState extends State<PaymentScreen>
     with TickerProviderStateMixin {
-  // ── Controladores ────────────────────────────────────────────────────────
   final _cardNumberCtrl = TextEditingController();
-  final _expiryCtrl = TextEditingController();
-  final _cvvCtrl = TextEditingController();
-  final _holderCtrl = TextEditingController();
-  final _promoCtrl = TextEditingController();
+  final _expiryCtrl     = TextEditingController();
+  final _cvvCtrl        = TextEditingController();
+  final _holderCtrl     = TextEditingController();
+  final _promoCtrl      = TextEditingController();
 
-  // ── Estado ───────────────────────────────────────────────────────────────
   String _selectedMethod = 'Credit';
-  bool _saveCard = false;
-  bool _promoApplied = false;
-  double _discount = 0;
-  bool _isProcessing = false;
-  int _currentStep = 0; // 0 = datos tarjeta, 1 = confirmación
+  bool   _saveCard       = false;
+  bool   _promoApplied   = false;
+  double _discount       = 0;
+  bool   _isProcessing   = false;
+  int    _currentStep    = 0;
 
   late AnimationController _slideCtrl;
-  late Animation<Offset> _slideAnim;
+  late Animation<Offset>   _slideAnim;
 
   final List<String> _methods = ['PayPal', 'Credit', 'Wallet'];
 
@@ -64,11 +62,10 @@ class _PaymentScreenState extends State<PaymentScreen>
     super.dispose();
   }
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
   String get _maskedCard {
     final raw = _cardNumberCtrl.text.replaceAll(' ', '');
-    if (raw.length >= 2) return '**** **** **** **${raw.substring(raw.length - 2)}';
-    return '**** **** **** ****';
+    if (raw.length >= 4) return raw.substring(raw.length - 4);
+    return '****';
   }
 
   double get _finalTotal => widget.total - _discount;
@@ -77,7 +74,7 @@ class _PaymentScreenState extends State<PaymentScreen>
     final code = _promoCtrl.text.trim().toUpperCase();
     if (code == 'PROMO20' || code == 'PROMO20-08') {
       setState(() {
-        _discount = widget.total * 0.20;
+        _discount     = widget.total * 0.20;
         _promoApplied = true;
       });
       ScaffoldMessenger.of(context).showSnackBar(
@@ -89,9 +86,8 @@ class _PaymentScreenState extends State<PaymentScreen>
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Código inválido'),
-          backgroundColor: Colors.redAccent,
-        ),
+            content: Text('Código inválido'),
+            backgroundColor: Colors.redAccent),
       );
     }
   }
@@ -103,9 +99,8 @@ class _PaymentScreenState extends State<PaymentScreen>
         _holderCtrl.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Por favor completa todos los campos'),
-          backgroundColor: Colors.orange,
-        ),
+            content: Text('Por favor completa todos los campos'),
+            backgroundColor: Colors.orange),
       );
       return;
     }
@@ -119,125 +114,45 @@ class _PaymentScreenState extends State<PaymentScreen>
     try {
       final orderId = await DatabaseHelper.instance.saveOrder(
         List<Product>.from(widget.cartItems),
-        _finalTotal,
+        widget.total,
         paymentMethod: _selectedMethod,
         cardHolder: _holderCtrl.text,
-        cardLast4: _cardNumberCtrl.text.replaceAll(' ', '').length >= 4
-            ? _cardNumberCtrl.text
-                .replaceAll(' ', '')
-                .substring(_cardNumberCtrl.text.replaceAll(' ', '').length - 4)
-            : '****',
+        cardLast4: _maskedCard,
         promoCode: _promoApplied ? _promoCtrl.text.trim() : null,
         discount: _discount,
       );
 
+      // Limpiar carrito ANTES de navegar
       widget.onPaymentComplete();
+
       setState(() => _isProcessing = false);
 
-      if (mounted) _showSuccessDialog(orderId);
+      if (!mounted) return;
+
+      // ── Navegar al historial reemplazando SOLO esta pantalla ─────────
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => _SuccessScreen(
+            orderId: orderId,
+            finalTotal: _finalTotal,
+            discount: _discount,
+            promoApplied: _promoApplied,
+          ),
+        ),
+      );
     } catch (e) {
       setState(() => _isProcessing = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+          SnackBar(
+              content: Text('Error al procesar el pago: $e'),
+              backgroundColor: Colors.red),
         );
       }
     }
   }
 
-  void _showSuccessDialog(int orderId) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (c) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        child: Padding(
-          padding: const EdgeInsets.all(28),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 72,
-                height: 72,
-                decoration: const BoxDecoration(
-                  color: Color(0xFF4C6EF5),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.check_rounded,
-                    color: Colors.white, size: 40),
-              ),
-              const SizedBox(height: 20),
-              const Text('¡Pago Exitoso!',
-                  style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF1A1A2E))),
-              const SizedBox(height: 8),
-              Text('Orden #$orderId procesada',
-                  style: const TextStyle(color: Colors.grey)),
-              const SizedBox(height: 6),
-              Text(
-                '\$${_finalTotal.toStringAsFixed(2)}',
-                style: const TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF4C6EF5)),
-              ),
-              if (_promoApplied) ...[
-                const SizedBox(height: 4),
-                Text('Ahorraste \$${_discount.toStringAsFixed(2)}',
-                    style: const TextStyle(
-                        color: Colors.green, fontWeight: FontWeight.w600)),
-              ],
-              const SizedBox(height: 24),
-              Row(children: [
-                Expanded(
-                  child: OutlinedButton(
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: Color(0xFF4C6EF5)),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                    ),
-                    onPressed: () {
-                      Navigator.pop(c);
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => const OrderHistoryScreen()),
-                      );
-                    },
-                    child: const Text('Ver órdenes',
-                        style: TextStyle(color: Color(0xFF4C6EF5))),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF4C6EF5),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                    ),
-                    onPressed: () {
-                      Navigator.pop(c);
-                      Navigator.pop(context);
-                      Navigator.pop(context);
-                    },
-                    child: const Text('OK',
-                        style: TextStyle(color: Colors.white)),
-                  ),
-                ),
-              ]),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ── UI ────────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -269,39 +184,32 @@ class _PaymentScreenState extends State<PaymentScreen>
     );
   }
 
-  // ── PASO 1: Datos de tarjeta ──────────────────────────────────────────────
+  // ── PASO 1 ────────────────────────────────────────────────────────────────
   Widget _buildStep1() {
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Total
           const Text('Total price',
               style: TextStyle(color: Colors.grey, fontSize: 14)),
           const SizedBox(height: 6),
-          Text(
-            '\$${widget.total.toStringAsFixed(2)}',
-            style: const TextStyle(
-                fontSize: 36,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF4C6EF5)),
-          ),
+          Text('\$${widget.total.toStringAsFixed(2)}',
+              style: const TextStyle(
+                  fontSize: 36,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF4C6EF5))),
           const SizedBox(height: 28),
 
-          // Método de pago
           const Text('Payment Method',
               style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
                   color: Color(0xFF1A1A2E))),
           const SizedBox(height: 14),
-          Row(
-            children: _methods.map((m) => _methodChip(m)).toList(),
-          ),
+          Row(children: _methods.map(_methodChip).toList()),
           const SizedBox(height: 28),
 
-          // Card number
           _buildLabel('Card number'),
           const SizedBox(height: 8),
           _buildCardField(
@@ -317,7 +225,6 @@ class _PaymentScreenState extends State<PaymentScreen>
           ),
           const SizedBox(height: 18),
 
-          // Expiry + CVV
           Row(
             children: [
               Expanded(
@@ -363,7 +270,6 @@ class _PaymentScreenState extends State<PaymentScreen>
           ),
           const SizedBox(height: 18),
 
-          // Card holder
           _buildLabel('Card holder'),
           const SizedBox(height: 8),
           _buildCardField(
@@ -373,20 +279,18 @@ class _PaymentScreenState extends State<PaymentScreen>
           ),
           const SizedBox(height: 24),
 
-          // Save card toggle
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
             decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-            ),
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16)),
             child: Row(
               children: [
-                const Text('Save card data for future payments',
-                    style: TextStyle(
-                        fontSize: 14, color: Color(0xFF1A1A2E))),
-                const Spacer(),
+                const Expanded(
+                  child: Text('Save card data for future payments',
+                      style:
+                          TextStyle(fontSize: 14, color: Color(0xFF1A1A2E))),
+                ),
                 Switch(
                   value: _saveCard,
                   onChanged: (v) => setState(() => _saveCard = v),
@@ -397,24 +301,20 @@ class _PaymentScreenState extends State<PaymentScreen>
           ),
           const SizedBox(height: 32),
 
-          // Botón continuar
           _buildPrimaryButton(
-            label: 'Proceed to confirm',
-            onTap: _goToConfirmation,
-          ),
+              label: 'Proceed to confirm', onTap: _goToConfirmation),
           const SizedBox(height: 24),
         ],
       ),
     );
   }
 
-  // ── PASO 2: Confirmación ──────────────────────────────────────────────────
+  // ── PASO 2 ────────────────────────────────────────────────────────────────
   Widget _buildStep2() {
     return SlideTransition(
       position: _slideAnim,
       child: SingleChildScrollView(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -432,29 +332,22 @@ class _PaymentScreenState extends State<PaymentScreen>
               ),
               child: Stack(
                 children: [
-                  // Círculos decorativos
                   Positioned(
-                    right: -20,
-                    top: -20,
+                    right: -20, top: -20,
                     child: Container(
-                      width: 120,
-                      height: 120,
+                      width: 120, height: 120,
                       decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.white.withOpacity(0.1),
-                      ),
+                          shape: BoxShape.circle,
+                          color: Colors.white.withOpacity(0.1)),
                     ),
                   ),
                   Positioned(
-                    right: 30,
-                    bottom: -30,
+                    right: 30, bottom: -30,
                     child: Container(
-                      width: 100,
-                      height: 100,
+                      width: 100, height: 100,
                       decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.white.withOpacity(0.08),
-                      ),
+                          shape: BoxShape.circle,
+                          color: Colors.white.withOpacity(0.08)),
                     ),
                   ),
                   Padding(
@@ -486,7 +379,7 @@ class _PaymentScreenState extends State<PaymentScreen>
             ),
             const SizedBox(height: 24),
 
-            // Payment information
+            // Payment info
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -508,9 +401,8 @@ class _PaymentScreenState extends State<PaymentScreen>
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-              ),
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16)),
               child: Row(
                 children: [
                   _cardIcon(),
@@ -528,7 +420,7 @@ class _PaymentScreenState extends State<PaymentScreen>
                             color: Color(0xFF1A1A2E)),
                       ),
                       Text(
-                        '${_selectedMethod} Card ending $_maskedCard',
+                        '$_selectedMethod Card ending **$_maskedCard',
                         style: const TextStyle(
                             color: Colors.grey, fontSize: 12),
                       ),
@@ -551,11 +443,11 @@ class _PaymentScreenState extends State<PaymentScreen>
                 Expanded(
                   child: Container(
                     decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(14),
-                    ),
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(14)),
                     child: TextField(
                       controller: _promoCtrl,
+                      enabled: !_promoApplied,
                       decoration: InputDecoration(
                         hintText: 'PROMO20-08',
                         hintStyle: TextStyle(
@@ -571,7 +463,6 @@ class _PaymentScreenState extends State<PaymentScreen>
                                 color: Colors.green)
                             : null,
                       ),
-                      enabled: !_promoApplied,
                     ),
                   ),
                 ),
@@ -590,8 +481,7 @@ class _PaymentScreenState extends State<PaymentScreen>
                     child: Text(
                       _promoApplied ? '✓' : 'Apply',
                       style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold),
+                          color: Colors.white, fontWeight: FontWeight.bold),
                     ),
                   ),
                 ),
@@ -599,13 +489,12 @@ class _PaymentScreenState extends State<PaymentScreen>
             ),
             const SizedBox(height: 24),
 
-            // Resumen de orden
+            // Resumen
             Container(
               padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-              ),
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16)),
               child: Column(
                 children: [
                   _summaryRow('Subtotal',
@@ -626,15 +515,12 @@ class _PaymentScreenState extends State<PaymentScreen>
             ),
             const SizedBox(height: 32),
 
-            // Botón pagar
             _isProcessing
                 ? const Center(
                     child: CircularProgressIndicator(
                         color: Color(0xFF4C6EF5)))
                 : _buildPrimaryButton(
-                    label: 'Pay',
-                    onTap: _processPayment,
-                  ),
+                    label: 'Pay', onTap: _processPayment),
             const SizedBox(height: 24),
           ],
         ),
@@ -680,13 +566,11 @@ class _PaymentScreenState extends State<PaymentScreen>
     );
   }
 
-  Widget _buildLabel(String text) => Text(
-        text,
-        style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: Color(0xFF1A1A2E)),
-      );
+  Widget _buildLabel(String text) => Text(text,
+      style: const TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          color: Color(0xFF1A1A2E)));
 
   Widget _buildCardField({
     required TextEditingController controller,
@@ -699,9 +583,7 @@ class _PaymentScreenState extends State<PaymentScreen>
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-      ),
+          color: Colors.white, borderRadius: BorderRadius.circular(14)),
       child: TextField(
         controller: controller,
         obscureText: obscure,
@@ -722,34 +604,30 @@ class _PaymentScreenState extends State<PaymentScreen>
     );
   }
 
-  Widget _cardIcon() => Container(
-        width: 40,
-        height: 40,
-        decoration: const BoxDecoration(shape: BoxShape.circle),
+  Widget _cardIcon() => SizedBox(
+        width: 44,
+        height: 44,
         child: Stack(
           alignment: Alignment.center,
           children: [
             Positioned(
-              left: 0,
+              left: 4,
               child: Container(
-                width: 24,
-                height: 24,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Color(0xFFEB001B),
-                ),
-              ),
+                  width: 26,
+                  height: 26,
+                  decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Color(0xFFEB001B))),
             ),
             Positioned(
-              right: 0,
+              right: 4,
               child: Container(
-                width: 24,
-                height: 24,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: const Color(0xFFF79E1B).withOpacity(0.9),
-                ),
-              ),
+                  width: 26,
+                  height: 26,
+                  decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color:
+                          const Color(0xFFF79E1B).withOpacity(0.9))),
             ),
           ],
         ),
@@ -799,6 +677,116 @@ class _PaymentScreenState extends State<PaymentScreen>
   }
 }
 
+// ── Pantalla de éxito separada ────────────────────────────────────────────────
+class _SuccessScreen extends StatelessWidget {
+  final int orderId;
+  final double finalTotal;
+  final double discount;
+  final bool promoApplied;
+
+  const _SuccessScreen({
+    required this.orderId,
+    required this.finalTotal,
+    required this.discount,
+    required this.promoApplied,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF4F6FB),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 90,
+                height: 90,
+                decoration: const BoxDecoration(
+                    color: Color(0xFF4C6EF5), shape: BoxShape.circle),
+                child: const Icon(Icons.check_rounded,
+                    color: Colors.white, size: 50),
+              ),
+              const SizedBox(height: 28),
+              const Text('¡Pago Exitoso!',
+                  style: TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1A1A2E))),
+              const SizedBox(height: 10),
+              Text('Orden #$orderId procesada correctamente',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.grey, fontSize: 15)),
+              const SizedBox(height: 12),
+              Text('\$${finalTotal.toStringAsFixed(2)}',
+                  style: const TextStyle(
+                      fontSize: 36,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF4C6EF5))),
+              if (promoApplied) ...[
+                const SizedBox(height: 6),
+                Text('Ahorraste \$${discount.toStringAsFixed(2)}',
+                    style: const TextStyle(
+                        color: Colors.green,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 15)),
+              ],
+              const SizedBox(height: 40),
+              SizedBox(
+                width: double.infinity,
+                height: 54,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF4C6EF5),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16)),
+                  ),
+                  onPressed: () {
+                    // Volver al home (quitar PaymentScreen y CartScreen)
+                    Navigator.popUntil(context, (route) => route.isFirst);
+                  },
+                  child: const Text('Volver al inicio',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold)),
+                ),
+              ),
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                height: 54,
+                child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Color(0xFF4C6EF5)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16)),
+                  ),
+                  onPressed: () {
+                    Navigator.popUntil(context, (route) => route.isFirst);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const OrderHistoryScreen()),
+                    );
+                  },
+                  child: const Text('Ver mis órdenes',
+                      style: TextStyle(
+                          color: Color(0xFF4C6EF5),
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 // ── Formatters ────────────────────────────────────────────────────────────────
 class _CardNumberFormatter extends TextInputFormatter {
   @override
@@ -824,7 +812,8 @@ class _ExpiryFormatter extends TextInputFormatter {
       TextEditingValue oldValue, TextEditingValue newValue) {
     final text = newValue.text.replaceAll('/', '');
     if (text.length >= 2) {
-      final formatted = '${text.substring(0, 2)}/${text.substring(2)}';
+      final formatted =
+          '${text.substring(0, 2)}/${text.substring(2)}';
       return newValue.copyWith(
         text: formatted,
         selection: TextSelection.collapsed(offset: formatted.length),
